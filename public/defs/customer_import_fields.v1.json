@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.0",
+  "entity": "customer",
+  "fields": [
+    {
+      "key": "full_name",
+      "label": "顧客名",
+      "required": true,
+      "type": "string",
+      "ui": {
+        "hint": "例: 山田 太郎 / 株式会社ABC商事",
+        "placeholder": "顧客名"
+      },
+      "normalizers": ["trim", "collapse_spaces"],
+      "validators": [
+        { "rule": "min_length", "params": { "value": 1 } },
+        { "rule": "max_length", "params": { "value": 128 } }
+      ]
+    },
+    {
+      "key": "email",
+      "label": "メール",
+      "required": false,
+      "type": "email",
+      "ui": {
+        "hint": "空欄OK。ある場合は形式チェックします"
+      },
+      "normalizers": ["trim", "lower"],
+      "validators": [
+        { "rule": "email_format", "params": {} },
+        { "rule": "max_length", "params": { "value": 254 } }
+      ]
+    },
+    {
+      "key": "phone",
+      "label": "電話番号",
+      "required": false,
+      "type": "tel",
+      "ui": {
+        "hint": "ハイフンや空白は自動除去します"
+      },
+      "normalizers": ["trim", "to_halfwidth", "digits_only"],
+      "validators": [
+        { "rule": "phone_jp_len", "params": { "min": 9, "max": 11 } }
+      ]
+    },
+    {
+      "key": "address_line1",
+      "label": "住所（都道府県+市区町村）",
+      "required": false,
+      "type": "string",
+      "ui": {
+        "hint": "例: 東京都新宿区"
+      },
+      "normalizers": ["trim", "collapse_spaces", "to_halfwidth"],
+      "validators": [
+        { "rule": "max_length", "params": { "value": 255 } }
+      ]
+    },
+    {
+      "key": "address_line2",
+      "label": "住所（番地・建物）",
+      "required": false,
+      "type": "string",
+      "ui": {
+        "hint": "例: 西新宿2-8-1 3F"
+      },
+      "normalizers": ["trim", "collapse_spaces", "to_halfwidth", "normalize_hyphens"],
+      "validators": [
+        { "rule": "max_length", "params": { "value": 255 } }
+      ]
+    },
+    {
+      "key": "owner_name",
+      "label": "担当",
+      "required": false,
+      "type": "string",
+      "ui": {
+        "hint": "例: 佐藤 / 鈴木"
+      },
+      "normalizers": ["trim", "collapse_spaces"],
+      "validators": [
+        { "rule": "max_length", "params": { "value": 128 } }
+      ]
+    },
+    {
+      "key": "status",
+      "label": "ステータス",
+      "required": true,
+      "type": "enum",
+      "ui": {
+        "hint": "未入力や未知の値は new に倒します",
+        "options": [
+          { "value": "new", "label": "new" },
+          { "value": "active", "label": "active" },
+          { "value": "inactive", "label": "inactive" },
+          { "value": "blocked", "label": "blocked" }
+        ]
+      },
+      "normalizers": ["trim", "lower", "enum_map"],
+      "normalizer_params": {
+        "enum_map": {
+          "new": ["new", "新品", "新規", "未対応"],
+          "active": ["active", "稼働", "有効", "継続", "取引中"],
+          "inactive": ["inactive", "停止", "無効", "休眠"],
+          "blocked": ["blocked", "ブロック", "要注意", "拒否"]
+        },
+        "default": "new"
+      },
+      "validators": [
+        { "rule": "enum_one_of", "params": { "values": ["new", "active", "inactive", "blocked"] } }
+      ]
+    },
+    {
+      "key": "registered_at",
+      "label": "登録日",
+      "required": false,
+      "type": "date",
+      "ui": {
+        "hint": "2025/01/10 や 2025-01-10 を受け付けます。不正ならエラー",
+        "placeholder": "YYYY/MM/DD または YYYY-MM-DD"
+      },
+      "normalizers": ["trim"],
+      "validators": [
+        { "rule": "date_parseable", "params": { "formats": ["YYYY/MM/DD", "YYYY-MM-DD"] } }
+      ]
+    }
+  ],
+  "computed_fields": [
+    {
+      "key": "email_norm",
+      "from": "email",
+      "normalizers": ["trim", "lower"]
+    },
+    {
+      "key": "phone_norm",
+      "from": "phone",
+      "normalizers": ["trim", "to_halfwidth", "digits_only"]
+    }
+  ],
+  "dedupe_policy": {
+    "priority_keys": ["email_norm", "phone_norm"],
+    "candidate_rule": {
+      "when_missing_all": ["email_norm", "phone_norm"],
+      "match_keys": ["full_name", "address_line1", "address_line2"],
+      "threshold": 70
+    }
+  }
+}
