@@ -5,7 +5,8 @@ import type { ImportDefinition } from "@/import-defs/types";
 import { useFieldMapping, useImportPreviewValidation } from "@/import-defs/hooks";
 import { parseCsvFile } from "@/import-csv/parseCsv";
 import { parseXlsxFile } from "@/import-xlsx/parseXlsx";
-import type { RowInput } from "@/import-defs/engine";
+import type { RowInput, RowWithCandidates } from "@/import-defs/engine";
+import { detectAllCandidates } from "@/import-defs/engine";
 
 type Step = "upload" | "preview" | "mapping" | "validation" | "run";
 
@@ -58,6 +59,14 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
 
   // run result (Lv1はローカルで「結果っぽい表示」)
   const [ran, setRan] = useState(false);
+
+  // 候補検出結果
+  const [rowsWithCandidates, setRowsWithCandidates] = useState<RowWithCandidates[]>([]);
+
+  // 候補解決状態: rowIndex -> action
+  const [candidateResolutions, setCandidateResolutions] = useState<
+    Record<number, "merged" | "created_new" | "ignored">
+  >({});
 
   const previewRows = useMemo(() => rows.slice(0, previewLimit), [rows, previewLimit]);
 
@@ -122,11 +131,21 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
         </div>
 
         <nav style={{ display: "flex", gap: 8 }}>
-          <button disabled={step === "upload"} onClick={() => setStep("upload")}>Upload</button>
-          <button disabled={!canGoPreview} onClick={() => setStep("preview")}>Preview</button>
-          <button disabled={!canGoMapping} onClick={() => setStep("mapping")}>Mapping</button>
-          <button disabled={!canGoValidation} onClick={() => setStep("validation")}>Validation</button>
-          <button disabled={!canRun} onClick={() => setStep("run")}>Run</button>
+          <button disabled={step === "upload"} onClick={() => setStep("upload")}>
+            Upload
+          </button>
+          <button disabled={!canGoPreview} onClick={() => setStep("preview")}>
+            Preview
+          </button>
+          <button disabled={!canGoMapping} onClick={() => setStep("mapping")}>
+            Mapping
+          </button>
+          <button disabled={!canGoValidation} onClick={() => setStep("validation")}>
+            Validation
+          </button>
+          <button disabled={!canRun} onClick={() => setStep("run")}>
+            Run
+          </button>
         </nav>
       </header>
 
@@ -151,9 +170,15 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
           <h3 style={{ marginTop: 0 }}>2) プレビュー</h3>
 
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-            <div><b>file:</b> {file?.name}</div>
-            <div><b>columns:</b> {columns.length}</div>
-            <div><b>rows:</b> {rows.length}</div>
+            <div>
+              <b>file:</b> {file?.name}
+            </div>
+            <div>
+              <b>columns:</b> {columns.length}
+            </div>
+            <div>
+              <b>rows:</b> {rows.length}
+            </div>
 
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               preview limit:
@@ -210,32 +235,64 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
           <h3 style={{ marginTop: 0 }}>4) バリデーション（プレビュー行）</h3>
 
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-            <div><b>error rows:</b> {errorSummary.errorRows} / {previewRows.length}</div>
-            <button onClick={onRun} disabled={!canRun}>
-              Run（ローカル実行）
+            <div>
+              <b>error rows:</b> {errorSummary.errorRows} / {previewRows.length}
+            </div>
+
+            <button
+              onClick={() => {
+                // 候補検出を実行
+                const withCandidates = detectAllCandidates(validationHook.results);
+                setRowsWithCandidates(withCandidates);
+                onRun();
+              }}
+              disabled={!canRun}
+            >
+              Run（候補検出＆ローカル実行）
             </button>
           </div>
 
           <ValidationSummaryUI def={def} byField={errorSummary.byField} />
 
           <ErrorRowsTable results={validationHook.results} />
+
+          {/* 候補検出結果のプレビュー */}
+          {rowsWithCandidates.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h4 style={{ margin: "8px 0" }}>候補検出結果（プレビュー）</h4>
+              <p style={{ fontSize: 12, opacity: 0.7 }}>
+                重複候補:{" "}
+                {rowsWithCandidates.filter((r) => r.candidates.length > 0).length}件
+              </p>
+            </div>
+          )}
         </section>
       )}
 
-      {/* Step 5: Run (Lv1) */}
+      {/* Step 5: Run (Lv2: 候補タブ追加) */}
       {step === "run" && validationHook && (
         <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <h3 style={{ marginTop: 0 }}>5) Run 結果（Lv1: ローカル）</h3>
+          <h3 style={{ marginTop: 0 }}>5) Run 結果（Lv2: 候補検出対応）</h3>
 
           {!ran ? (
             <p>まだ実行されていません</p>
           ) : (
             <>
               <p style={{ opacity: 0.8 }}>
-                Lv1ではDB登録はせず、バリデ結果から「取り込み結果っぽい集計」を表示します。
+                候補検出が完了しました。タブで結果を確認してください。
               </p>
 
-              <RunResultMock results={validationHook.results} />
+              <RunResultWithTabs
+                results={validationHook.results}
+                rowsWithCandidates={rowsWithCandidates}
+                candidateResolutions={candidateResolutions}
+                onResolve={(rowIndex, action) => {
+                  setCandidateResolutions((prev) => ({
+                    ...prev,
+                    [rowIndex]: action,
+                  }));
+                }}
+              />
 
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <button onClick={() => setStep("mapping")}>戻る（Mapping）</button>
@@ -306,7 +363,10 @@ function PreviewTable({
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c} style={{ borderBottom: "1px solid #ddd", textAlign: "left", padding: 8 }}>
+              <th
+                key={c}
+                style={{ borderBottom: "1px solid #ddd", textAlign: "left", padding: 8 }}
+              >
                 {c}
               </th>
             ))}
@@ -316,7 +376,10 @@ function PreviewTable({
           {rows.map((r, i) => (
             <tr key={i}>
               {columns.map((c) => (
-                <td key={c} style={{ borderBottom: "1px solid #f0f0f0", padding: 8, fontSize: 12 }}>
+                <td
+                  key={c}
+                  style={{ borderBottom: "1px solid #f0f0f0", padding: 8, fontSize: 12 }}
+                >
                   {String(r[c] ?? "")}
                 </td>
               ))}
@@ -362,7 +425,8 @@ function ColumnMappingEditorUI({
           >
             <div>
               <div style={{ fontWeight: 700 }}>
-                {f.label} {f.required ? <span style={{ color: "crimson" }}>*</span> : null}
+                {f.label}{" "}
+                {f.required ? <span style={{ color: "crimson" }}>*</span> : null}
               </div>
               <div style={{ fontSize: 12, opacity: 0.7 }}>{f.ui?.hint ?? f.key}</div>
             </div>
@@ -452,9 +516,15 @@ function ErrorRowsTable({
         <table style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>#</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>errors</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>normalized (partial)</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                #
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                errors
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                normalized (partial)
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -516,6 +586,264 @@ function Stat({ label, value }: { label: string; value: number }) {
     <div style={{ border: "1px solid #eee", borderRadius: 10, padding: 12, minWidth: 160 }}>
       <div style={{ fontSize: 12, opacity: 0.7 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
+    </div>
+  );
+}
+
+// タブ付きRun結果表示
+function RunResultWithTabs({
+  results,
+  rowsWithCandidates,
+  candidateResolutions,
+  onResolve,
+}: {
+  results: Array<{ errors: any[]; normalized: Record<string, string> }>;
+  rowsWithCandidates: RowWithCandidates[];
+  candidateResolutions: Record<number, "merged" | "created_new" | "ignored">;
+  onResolve: (rowIndex: number, action: "merged" | "created_new" | "ignored") => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"summary" | "candidates" | "errors">("summary");
+
+  const candidateRows = rowsWithCandidates
+    .map((r, idx) => ({ ...r, rowIndex: idx }))
+    .filter((r) => r.candidates.length > 0);
+
+  // idxズレ防止: rowIndexで見る
+  const unresolvedCandidates = candidateRows.filter((r) => !candidateResolutions[r.rowIndex]);
+
+  const errorCount = results.filter((r) => r.errors.length > 0).length;
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      {/* タブヘッダー */}
+      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #ddd" }}>
+        <button
+          onClick={() => setActiveTab("summary")}
+          style={{
+            padding: "8px 16px",
+            border: "none",
+            borderBottom: activeTab === "summary" ? "2px solid #333" : "none",
+            background: activeTab === "summary" ? "#f5f5f5" : "transparent",
+            cursor: "pointer",
+            fontWeight: activeTab === "summary" ? 700 : 400,
+          }}
+        >
+          サマリー
+        </button>
+
+        <button
+          onClick={() => setActiveTab("candidates")}
+          style={{
+            padding: "8px 16px",
+            border: "none",
+            borderBottom: activeTab === "candidates" ? "2px solid #333" : "none",
+            background: activeTab === "candidates" ? "#f5f5f5" : "transparent",
+            cursor: "pointer",
+            fontWeight: activeTab === "candidates" ? 700 : 400,
+          }}
+        >
+          候補 ({candidateRows.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab("errors")}
+          style={{
+            padding: "8px 16px",
+            border: "none",
+            borderBottom: activeTab === "errors" ? "2px solid #333" : "none",
+            background: activeTab === "errors" ? "#f5f5f5" : "transparent",
+            cursor: "pointer",
+            fontWeight: activeTab === "errors" ? 700 : 400,
+          }}
+        >
+          エラー ({errorCount})
+        </button>
+      </div>
+
+      {/* タブコンテンツ */}
+      <div style={{ marginTop: 16 }}>
+        {activeTab === "summary" && (
+          <div>
+            <h4 style={{ margin: "8px 0" }}>取り込み結果</h4>
+            <RunResultMock results={results} />
+
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 14 }}>
+                <b>候補検出:</b> {candidateRows.length}件
+              </div>
+              <div style={{ fontSize: 14, marginTop: 4 }}>
+                <b>未解決:</b> {unresolvedCandidates.length}件
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "candidates" && (
+          <CandidatesTab
+            rowsWithCandidates={rowsWithCandidates}
+            candidateResolutions={candidateResolutions}
+            onResolve={onResolve}
+          />
+        )}
+
+        {activeTab === "errors" && (
+          <div>
+            <h4 style={{ margin: "8px 0" }}>エラー行</h4>
+            <ErrorRowsTable results={results} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 候補タブ
+function CandidatesTab({
+  rowsWithCandidates,
+  candidateResolutions,
+  onResolve,
+}: {
+  rowsWithCandidates: RowWithCandidates[];
+  candidateResolutions: Record<number, "merged" | "created_new" | "ignored">;
+  onResolve: (rowIndex: number, action: "merged" | "created_new" | "ignored") => void;
+}) {
+  const candidateRows = rowsWithCandidates
+    .map((r, idx) => ({ ...r, rowIndex: idx }))
+    .filter((r) => r.candidates.length > 0);
+
+  if (candidateRows.length === 0) {
+    return <p>重複候補はありません</p>;
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <h4 style={{ margin: "8px 0" }}>重複候補 ({candidateRows.length}件)</h4>
+
+      {candidateRows.map((row) => (
+        <CandidateCard
+          key={row.rowIndex}
+          row={row}
+          resolution={candidateResolutions[row.rowIndex]}
+          onResolve={(action) => onResolve(row.rowIndex, action)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// 候補カード
+function CandidateCard({
+  row,
+  resolution,
+  onResolve,
+}: {
+  row: RowWithCandidates & { rowIndex: number };
+  resolution?: "merged" | "created_new" | "ignored";
+  onResolve: (action: "merged" | "created_new" | "ignored") => void;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid #ddd",
+        borderRadius: 8,
+        padding: 16,
+        background: resolution ? "#f9f9f9" : "white",
+      }}
+    >
+      {/* 新規データ */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
+          新規データ（行 {row.rowIndex + 1}）
+        </div>
+        <div style={{ fontWeight: 700 }}>{row.normalized.full_name}</div>
+        <div style={{ fontSize: 12 }}>
+          住所: {row.normalized.address_line1} {row.normalized.address_line2}
+        </div>
+      </div>
+
+      {/* 候補リスト */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
+          類似データ候補（{row.candidates.length}件）
+        </div>
+
+        {row.candidates.slice(0, 3).map((c, i) => (
+          <div
+            key={i}
+            style={{
+              padding: 8,
+              border: "1px solid #eee",
+              borderRadius: 4,
+              marginTop: 8,
+              background: "#fafafa",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>
+                  行 {c.candidateIndex + 1} (スコア: {c.score})
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{c.reason}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 解決アクション */}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        {resolution ? (
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#666" }}>
+            解決済み: {resolution === "merged" && "統合"}
+            {resolution === "created_new" && "新規作成"}
+            {resolution === "ignored" && "無視"}
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => onResolve("merged")}
+              style={{
+                padding: "8px 16px",
+                background: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              ✅ 統合（Merge）
+            </button>
+
+            <button
+              onClick={() => onResolve("created_new")}
+              style={{
+                padding: "8px 16px",
+                background: "#2196F3",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              ➕ 新規作成
+            </button>
+
+            <button
+              onClick={() => onResolve("ignored")}
+              style={{
+                padding: "8px 16px",
+                background: "#999",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              🚫 無視
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
