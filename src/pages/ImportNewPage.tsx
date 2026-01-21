@@ -57,7 +57,7 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
   const [step, setStep] = useState<Step>("upload");
   const [previewLimit, setPreviewLimit] = useState(20);
 
-  // run result (Lv1はローカルで「結果っぽい表示」)
+  // run result
   const [ran, setRan] = useState(false);
 
   // 候補検出結果
@@ -114,17 +114,42 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
     }
   }
 
-  function onRun() {
-    // Lv1: ローカルでバリデ結果を「実行」扱いにして、結果画面へ
-    setRan(true);
-    setStep("run");
+  // 🔥 Lv3: バックエンドAPI呼び出し（修正1）
+  async function onRun() {
+    try {
+      const payload = validationHook.results.map((r) => r.normalized);
+      const response = await fetch("http://localhost:8000/api/customers/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customers: payload }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // 候補検出結果をセット
+      const withCandidates = result.candidates.map((c: any) => ({
+        normalized: c.normalized,
+        candidates: c.candidates,
+      }));
+      
+      setRowsWithCandidates(withCandidates);
+      setRan(true);
+      setStep("run");
+    } catch (error) {
+      console.error("Import failed:", error);
+      alert("インポートに失敗しました: " + error);
+    }
   }
 
   return (
     <div style={{ padding: 16, display: "grid", gap: 16, maxWidth: 1100 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ margin: 0 }}>顧客台帳インポート（Lv1）</h2>
+          <h2 style={{ margin: 0 }}>顧客台帳インポート（Lv3）</h2>
           <div style={{ fontSize: 12, opacity: 0.7 }}>
             step: {step} / rows: {rows.length || 0}
           </div>
@@ -240,46 +265,30 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
             </div>
 
             <button
-              onClick={() => {
-                // 候補検出を実行
-                const withCandidates = detectAllCandidates(validationHook.results);
-                setRowsWithCandidates(withCandidates);
-                onRun();
-              }}
+              onClick={onRun}
               disabled={!canRun}
             >
-              Run（候補検出＆ローカル実行）
+              Run（バックエンドでインポート実行）
             </button>
           </div>
 
           <ValidationSummaryUI def={def} byField={errorSummary.byField} />
 
           <ErrorRowsTable results={validationHook.results} />
-
-          {/* 候補検出結果のプレビュー */}
-          {rowsWithCandidates.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <h4 style={{ margin: "8px 0" }}>候補検出結果（プレビュー）</h4>
-              <p style={{ fontSize: 12, opacity: 0.7 }}>
-                重複候補:{" "}
-                {rowsWithCandidates.filter((r) => r.candidates.length > 0).length}件
-              </p>
-            </div>
-          )}
         </section>
       )}
 
-      {/* Step 5: Run (Lv2: 候補タブ追加) */}
+      {/* Step 5: Run (Lv3: 候補タブ追加 + API連携) */}
       {step === "run" && validationHook && (
         <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <h3 style={{ marginTop: 0 }}>5) Run 結果（Lv2: 候補検出対応）</h3>
+          <h3 style={{ marginTop: 0 }}>5) Run 結果（Lv3: フルスタック完成）</h3>
 
           {!ran ? (
             <p>まだ実行されていません</p>
           ) : (
             <>
               <p style={{ opacity: 0.8 }}>
-                候補検出が完了しました。タブで結果を確認してください。
+                バックエンドでインポートが完了しました。タブで結果を確認してください。
               </p>
 
               <RunResultWithTabs
@@ -287,10 +296,25 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
                 rowsWithCandidates={rowsWithCandidates}
                 candidateResolutions={candidateResolutions}
                 onResolve={(rowIndex, action) => {
-                  setCandidateResolutions((prev) => ({
-                    ...prev,
-                    [rowIndex]: action,
-                  }));
+                  // 🔥 Lv3: 候補解決API呼び出し（修正2）
+                  const candidate = rowsWithCandidates[rowIndex];
+                  if (!candidate) return;
+
+                  fetch(`http://localhost:8000/api/customers/resolve/${rowIndex}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action }),
+                  })
+                    .then(() => {
+                      setCandidateResolutions((prev) => ({
+                        ...prev,
+                        [rowIndex]: action,
+                      }));
+                    })
+                    .catch((error) => {
+                      console.error("Resolve failed:", error);
+                      alert("候補解決に失敗しました: " + error);
+                    });
                 }}
               />
 
@@ -568,7 +592,6 @@ function RunResultMock({
 }: {
   results: Array<{ errors: any[]; normalized: Record<string, string> }>;
 }) {
-  // Lv1: errorsがない行を「inserted」扱いにして雰囲気を作る
   const ok = results.filter((r) => r.errors.length === 0).length;
   const ng = results.length - ok;
 
@@ -608,7 +631,6 @@ function RunResultWithTabs({
     .map((r, idx) => ({ ...r, rowIndex: idx }))
     .filter((r) => r.candidates.length > 0);
 
-  // idxズレ防止: rowIndexで見る
   const unresolvedCandidates = candidateRows.filter((r) => !candidateResolutions[r.rowIndex]);
 
   const errorCount = results.filter((r) => r.errors.length > 0).length;
