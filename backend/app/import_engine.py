@@ -1,6 +1,34 @@
+from typing import Dict, Any, List
 import re
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+
+def normalize_value(value: Any, rule: str) -> str:
+    """値を正規化"""
+    if value is None:
+        return ""
+    
+    s = str(value).strip()
+    
+    if rule == "trim":
+        return s
+    elif rule == "email":
+        return s.lower()
+    elif rule == "phone":
+        # ハイフン、スペース、括弧を除去
+        return re.sub(r"[\s\-()（）]", "", s)
+    
+    return s
+
+def validate_value(value: str, rule: str) -> str:
+    """値をバリデーション（エラーメッセージを返す）"""
+    if rule == "email":
+        if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", value):
+            return "メールアドレスの形式が不正です"
+    elif rule == "date":
+        # 簡易的な日付チェック
+        if not re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}$", value):
+            return "日付の形式が不正です (YYYY-MM-DD または YYYY/MM/DD)"
+    
+    return ""
 
 def levenshtein_distance(s1: str, s2: str) -> int:
     """Levenshtein距離を計算"""
@@ -23,63 +51,16 @@ def levenshtein_distance(s1: str, s2: str) -> int:
     return previous_row[-1]
 
 def similarity_score(s1: str, s2: str) -> float:
-    """類似度スコアを計算（0.0-1.0）"""
+    """文字列の類似度を計算（0.0 ~ 1.0）"""
     if not s1 or not s2:
         return 0.0
     
-    s1_lower = s1.lower().strip()
-    s2_lower = s2.lower().strip()
-    
-    if s1_lower == s2_lower:
+    max_len = max(len(s1), len(s2))
+    if max_len == 0:
         return 1.0
     
-    distance = levenshtein_distance(s1_lower, s2_lower)
-    max_len = max(len(s1_lower), len(s2_lower))
-    
-    if max_len == 0:
-        return 0.0
-    
+    distance = levenshtein_distance(s1, s2)
     return 1.0 - (distance / max_len)
-
-def normalize_value(value: Any, normalizer_type: str) -> Any:
-    """値を正規化"""
-    if value is None or value == "":
-        return None
-    
-    str_value = str(value)
-    
-    if normalizer_type == "trim":
-        return str_value.strip()
-    elif normalizer_type == "lower":
-        return str_value.lower()
-    elif normalizer_type == "upper":
-        return str_value.upper()
-    elif normalizer_type == "digits_only":
-        return re.sub(r'\D', '', str_value)
-    
-    return str_value
-
-def validate_value(value: Any, validator_type: str) -> Optional[str]:
-    """値を検証してエラーメッセージを返す"""
-    if value is None or value == "":
-        return None
-    
-    str_value = str(value)
-    
-    if validator_type == "email":
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        if not re.match(email_pattern, str_value):
-            return "Invalid email format"
-    elif validator_type == "date":
-        # 簡易的な日付チェック
-        date_patterns = [
-            r'^\d{4}-\d{2}-\d{2}$',
-            r'^\d{2}/\d{2}/\d{4}$',
-        ]
-        if not any(re.match(pattern, str_value) for pattern in date_patterns):
-            return "Invalid date format"
-    
-    return None
 
 def find_duplicate_candidates(
     new_row: Dict[str, Any],
@@ -89,37 +70,68 @@ def find_duplicate_candidates(
     """重複候補を検出"""
     candidates = []
     
-    # email/phoneがあれば候補検出しない（完全一致で処理）
-    if new_row.get("email") or new_row.get("phone"):
-        return candidates
-    
+    new_email = new_row.get("email", "")
+    new_phone = new_row.get("phone", "")
     new_name = new_row.get("full_name", "")
-    new_address = new_row.get("address", "")
+    new_address = new_row.get("address_line1", "") or new_row.get("address", "")
     
+    # 🔥 email完全一致チェック
+    if new_email:
+        for customer in existing_customers:
+            if customer.get("email") == new_email:
+                candidates.append({
+                    "customer_id": customer["id"],
+                    "match_reason": f"Email完全一致: {new_email}",
+                    "similarity_score": 1.0
+                })
+                return candidates  # email完全一致があれば他は見ない
+    
+    # 🔥 phone完全一致チェック
+    if new_phone:
+        for customer in existing_customers:
+            if customer.get("phone") == new_phone:
+                candidates.append({
+                    "customer_id": customer["id"],
+                    "match_reason": f"電話番号完全一致: {new_phone}",
+                    "similarity_score": 1.0
+                })
+                return candidates  # phone完全一致があれば他は見ない
+    
+    # 名前・住所の類似度チェック
     if not new_name:
         return candidates
     
     for customer in existing_customers:
         cust_name = customer.get("full_name", "")
-        cust_address = customer.get("address", "")
+        cust_address = customer.get("address_line1", "") or customer.get("address", "")
         
-        # 名前の類似度
+        if not cust_name:
+            continue
+        
         name_sim = similarity_score(new_name, cust_name)
         
-        # 住所の類似度
-        address_sim = 0.0
-        if new_address and cust_address:
-            address_sim = similarity_score(new_address, cust_address)
-        
-        # 総合スコア（名前重視）
-        total_score = name_sim * 0.7 + address_sim * 0.3
-        
-        if total_score >= threshold:
+        # 名前の類似度が閾値以上
+        if name_sim >= threshold:
+            reason = f"名前類似: {cust_name} (類似度: {name_sim:.2f})"
+            
+            # 住所もチェック
+            if new_address and cust_address:
+                addr_sim = similarity_score(new_address, cust_address)
+                if addr_sim >= threshold:
+                    reason += f" / 住所類似: {cust_address} (類似度: {addr_sim:.2f})"
+                    combined_score = (name_sim + addr_sim) / 2
+                else:
+                    combined_score = name_sim * 0.7  # 住所が一致しない場合はスコア減
+            else:
+                combined_score = name_sim
+            
             candidates.append({
-                "customer_id": customer.get("id"),
-                "customer": customer,
-                "match_reason": f"Similar name ({name_sim:.2f}) and address ({address_sim:.2f})",
-                "similarity_score": round(total_score, 2)
+                "customer_id": customer["id"],
+                "match_reason": reason,
+                "similarity_score": combined_score
             })
     
-    return candidates
+    # スコアでソート
+    candidates.sort(key=lambda x: x["similarity_score"], reverse=True)
+    
+    return candidates[:5]  # 上位5件まで

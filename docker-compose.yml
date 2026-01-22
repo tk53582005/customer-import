@@ -16,15 +16,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
   backend:
     build: ./backend
     container_name: customer_import_backend
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: mysql+pymysql://root:password@mysql:3306/customer_import
-      CORS_ORIGINS: http://localhost:5173
+    env_file:
+      - ./backend/.env
     depends_on:
       mysql:
         condition: service_healthy

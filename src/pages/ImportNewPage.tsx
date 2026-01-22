@@ -129,13 +129,13 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
       }
 
       const result = await response.json();
-      
+
       // 候補検出結果をセット
       const withCandidates = result.candidates.map((c: any) => ({
         normalized: c.normalized,
         candidates: c.candidates,
       }));
-      
+
       setRowsWithCandidates(withCandidates);
       setRan(true);
       setStep("run");
@@ -303,7 +303,10 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
                   fetch(`http://localhost:8000/api/customers/resolve/${rowIndex}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action }),
+                    body: JSON.stringify({
+                      action,
+                      customer_data: candidate.normalized
+                    }),
                   })
                     .then(() => {
                       setCandidateResolutions((prev) => ({
