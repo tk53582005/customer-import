@@ -3,24 +3,32 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 # リクエストスキーマ
+
+
 class ImportCreate(BaseModel):
     filename: str
+
 
 class ImportRunRequest(BaseModel):
     mapping: Dict[str, str]
     rows: List[Dict[str, Any]]
 
+
 class CandidateResolveRequest(BaseModel):
     action: str  # "merged" | "created_new" | "ignored"
 
 # レスポンススキーマ
+
+
 class ImportCreateResponse(BaseModel):
     import_id: int
+
 
 class ImportRunResponse(BaseModel):
     inserted: int
     errors: int
     candidates: int
+
 
 class ImportStatusResponse(BaseModel):
     id: int
@@ -30,7 +38,12 @@ class ImportStatusResponse(BaseModel):
     inserted_count: int
     error_count: int
     candidate_count: int
+    error_message: Optional[str] = None
+    created_by: Optional[str] = None  # 🆕 追加
+    resolved_by: Optional[str] = None  # 🆕 追加
+    resolved_at: Optional[datetime] = None  # 🆕 追加
     created_at: datetime
+
 
 class DuplicateCandidateResponse(BaseModel):
     id: int

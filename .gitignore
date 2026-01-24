@@ -24,3 +24,19 @@ dist-ssr
 *.sw?
 __pycache__/
 *.pyc
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+
+# Docker volumes
+volumes/

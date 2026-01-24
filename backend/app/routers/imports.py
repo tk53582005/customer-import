@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime  # 🆕 追加
 from .. import crud, schemas, models
 from ..database import get_db
 from ..import_engine import normalize_value, validate_value, find_duplicate_candidates
+from ..import_processor import process_import_job
 
 router = APIRouter()
 
@@ -161,9 +163,19 @@ def resolve_customer(row_index: int, request: dict, db: Session = Depends(get_db
 
 
 @router.post("/imports", response_model=schemas.ImportCreateResponse)
-def create_import(request: schemas.ImportCreate, db: Session = Depends(get_db)):
+def create_import(
+    request: schemas.ImportCreate,
+    db: Session = Depends(get_db),
+    user_name: str = Header(None, alias="X-User-Name")
+):
     """インポートを作成"""
     db_import = crud.create_import(db, filename=request.filename)
+
+    # created_by を保存
+    if user_name:
+        db_import.created_by = user_name
+        db.commit()
+
     return {"import_id": db_import.id}
 
 
@@ -171,141 +183,32 @@ def create_import(request: schemas.ImportCreate, db: Session = Depends(get_db)):
 def run_import(
     import_id: int,
     request: schemas.ImportRunRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """インポートを実行"""
+    """インポートを実行（非同期版）"""
     db_import = crud.get_import(db, import_id)
     if not db_import:
         raise HTTPException(status_code=404, detail="Import not found")
 
-    mapping = request.mapping
-    rows = request.rows
+    # ステータスを processing に更新
+    db_import.status = models.ImportStatus.processing
+    db.commit()
 
-    inserted_count = 0
-    error_count = 0
-    candidate_count = 0
-
-    # 既存顧客を取得
-    existing_customers = crud.get_all_customers(db)
-    existing_customers_dict = [
-        {
-            "id": c.id,
-            "full_name": c.full_name,
-            "email": c.email,
-            "phone": c.phone,
-            "address": c.address,
-            "city": c.city,
-            "state": c.state,
-            "zip_code": c.zip_code
-        }
-        for c in existing_customers
-    ]
-
-    for idx, row in enumerate(rows):
-        raw_data = row
-        mapped_data = {}
-        normalized_data = {}
-        validation_errors = []
-
-        # マッピング
-        for db_field, excel_col in mapping.items():
-            if excel_col and excel_col in row:
-                mapped_data[db_field] = row[excel_col]
-
-        # 正規化（簡易版：trimのみ）
-        for field, value in mapped_data.items():
-            normalized_data[field] = normalize_value(value, "trim")
-
-        # バリデーション
-        if "email" in normalized_data and normalized_data["email"]:
-            error = validate_value(normalized_data["email"], "email")
-            if error:
-                validation_errors.append(f"email: {error}")
-
-        # エラーがあればエラー行として保存
-        if validation_errors:
-            crud.create_import_row(
-                db, import_id, idx, raw_data, mapped_data,
-                normalized_data, validation_errors, "error"
-            )
-            error_count += 1
-            continue
-
-        # email/phoneで完全一致チェック
-        existing_customer = None
-        if normalized_data.get("email"):
-            existing_customer = crud.get_customer_by_email(
-                db, normalized_data["email"])
-        elif normalized_data.get("phone"):
-            existing_customer = crud.get_customer_by_phone(
-                db, normalized_data["phone"])
-
-        if existing_customer:
-            # 既存顧客あり → 更新
-            for key, value in normalized_data.items():
-                if value:
-                    setattr(existing_customer, key, value)
-            db.commit()
-
-            crud.create_import_row(
-                db, import_id, idx, raw_data, mapped_data,
-                normalized_data, [], "inserted"
-            )
-            inserted_count += 1
-        else:
-            # 重複候補検出
-            candidates = find_duplicate_candidates(
-                normalized_data, existing_customers_dict)
-
-            if candidates:
-                # 候補あり
-                db_row = crud.create_import_row(
-                    db, import_id, idx, raw_data, mapped_data,
-                    normalized_data, [], "candidate"
-                )
-
-                for candidate in candidates:
-                    crud.create_duplicate_candidate(
-                        db,
-                        import_row_id=db_row.id,
-                        existing_customer_id=candidate["customer_id"],
-                        match_reason=candidate["match_reason"],
-                        similarity_score=candidate["similarity_score"]
-                    )
-
-                candidate_count += 1
-            else:
-                # 新規作成
-                customer_data = {
-                    "full_name": normalized_data.get("full_name"),
-                    "email": empty_to_none(normalized_data.get("email")),
-                    "phone": empty_to_none(normalized_data.get("phone")),
-                    "address": normalized_data.get("address"),
-                    "city": normalized_data.get("city"),
-                    "state": normalized_data.get("state"),
-                    "zip_code": normalized_data.get("zip_code")
-                }
-                crud.create_customer(db, customer_data)
-
-                crud.create_import_row(
-                    db, import_id, idx, raw_data, mapped_data,
-                    normalized_data, [], "inserted"
-                )
-                inserted_count += 1
-
-    # ステータス更新
-    crud.update_import_status(
-        db, import_id, "completed",
-        total_rows=len(rows),
-        inserted_count=inserted_count,
-        error_count=error_count,
-        candidate_count=candidate_count
+    # バックグラウンドタスクに追加
+    background_tasks.add_task(
+        process_import_job,
+        import_id=import_id,
+        mapping=request.mapping,
+        rows=request.rows,
+        db=db
     )
 
+    # すぐにレスポンスを返す
     return {
-        "inserted": inserted_count,
-        "errors": error_count,
-        "candidates": candidate_count
+        "inserted": 0,  # まだ処理中なので0
+        "errors": 0,
+        "candidates": 0
     }
 
 
@@ -324,7 +227,8 @@ def resolve_candidate(
     import_id: int,
     candidate_id: int,
     request: schemas.CandidateResolveRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_name: str = Header(None, alias="X-User-Name")  # 🆕 追加
 ):
     """重複候補を解決"""
     # 候補を取得
@@ -346,6 +250,14 @@ def resolve_candidate(
     result = crud.resolve_duplicate_candidate(
         db, candidate_id, request.action, new_customer_data
     )
+
+    # 🆕 resolved_by と resolved_at を保存
+    if user_name:
+        db_import = crud.get_import(db, import_id)
+        if db_import:
+            db_import.resolved_by = user_name
+            db_import.resolved_at = datetime.now()
+            db.commit()
 
     return {"status": "resolved", "action": request.action}
 

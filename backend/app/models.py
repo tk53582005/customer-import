@@ -3,10 +3,12 @@ from sqlalchemy.sql import func
 from .database import Base
 import enum
 
+
 class ImportStatus(str, enum.Enum):
     processing = "processing"
     completed = "completed"
     failed = "failed"
+
 
 class RowStatus(str, enum.Enum):
     pending = "pending"
@@ -14,15 +16,17 @@ class RowStatus(str, enum.Enum):
     error = "error"
     candidate = "candidate"
 
+
 class Resolution(str, enum.Enum):
     pending = "pending"
     merged = "merged"
     created_new = "created_new"
     ignored = "ignored"
 
+
 class Import(Base):
     __tablename__ = "imports"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
     status = Column(Enum(ImportStatus), default=ImportStatus.processing)
@@ -30,11 +34,16 @@ class Import(Base):
     inserted_count = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
     candidate_count = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)
+    created_by = Column(String(100), nullable=True)  # 🆕 追加
+    resolved_by = Column(String(100), nullable=True)  # 🆕 追加
+    resolved_at = Column(DateTime(timezone=True), nullable=True)  # 🆕 追加
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class ImportRow(Base):
     __tablename__ = "import_rows"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     import_id = Column(Integer, ForeignKey("imports.id"), nullable=False)
     row_index = Column(Integer, nullable=False)
@@ -44,9 +53,10 @@ class ImportRow(Base):
     validation_errors = Column(JSON)
     status = Column(Enum(RowStatus), default=RowStatus.pending)
 
+
 class Customer(Base):
     __tablename__ = "customers"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(255))
     email = Column(String(255), unique=True, nullable=True)
@@ -57,12 +67,15 @@ class Customer(Base):
     zip_code = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
 class DuplicateCandidate(Base):
     __tablename__ = "duplicate_candidates"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    import_row_id = Column(Integer, ForeignKey("import_rows.id"), nullable=False)
-    existing_customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    import_row_id = Column(Integer, ForeignKey(
+        "import_rows.id"), nullable=False)
+    existing_customer_id = Column(
+        Integer, ForeignKey("customers.id"), nullable=False)
     match_reason = Column(String(255))
     similarity_score = Column(DECIMAL(3, 2))
     resolution = Column(Enum(Resolution), default=Resolution.pending)
