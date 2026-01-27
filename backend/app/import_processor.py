@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Session
 from . import crud, models
 from .import_engine import normalize_value, validate_value, find_duplicate_candidates
+from .s3_service import s3_service
+import pandas as pd
+from io import BytesIO
 
 
 def empty_to_none(value):
@@ -13,16 +16,47 @@ def empty_to_none(value):
 def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
     """
     バックグラウンドでインポート処理を実行
+    rowsパラメータは後方互換性のために残す（S3キーがある場合はS3から読み込む）
     """
     try:
         # ステータスを processing に更新（念のため）
         db_import = crud.get_import(db, import_id)
         if not db_import:
             return
-
+        
         db_import.status = models.ImportStatus.processing
         db.commit()
-
+        
+        # 🆕 S3キーがあればS3から読み込む
+        if db_import.s3_key:
+            try:
+                print(f"DEBUG: S3からファイル読み込み開始: {db_import.s3_key}")
+                file_bytes = s3_service.download_file(db_import.s3_key)
+                if not file_bytes:
+                    raise Exception(f"Failed to download file from S3: {db_import.s3_key}")
+                
+                print(f"DEBUG: ファイルサイズ: {len(file_bytes)} bytes")
+                
+                # ファイル拡張子で判定
+                if db_import.filename.endswith('.csv'):
+                    df = pd.read_csv(BytesIO(file_bytes))
+                elif db_import.filename.endswith(('.xlsx', '.xls')):
+                    df = pd.read_excel(BytesIO(file_bytes))
+                else:
+                    raise Exception(f"Unsupported file type: {db_import.filename}")
+                
+                # DataFrameを辞書のリストに変換
+                rows = df.to_dict('records')
+                print(f"DEBUG: S3から読み込んだ行数: {len(rows)}")
+                if rows:
+                    print(f"DEBUG: 最初の行: {rows[0]}")
+            except Exception as e:
+                print(f"ERROR: S3ファイル読み込みエラー: {str(e)}")
+                db_import.status = models.ImportStatus.failed
+                db_import.error_message = f"S3ファイル読み込みエラー: {str(e)}"
+                db.commit()
+                return
+        
         inserted_count = 0
         error_count = 0
         candidate_count = 0
@@ -143,11 +177,11 @@ def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
             error_count=error_count,
             candidate_count=candidate_count
         )
-
+        
     except Exception as e:
         # 失敗: ステータスを failed に更新
         db_import = crud.get_import(db, import_id)
         if db_import:
             db_import.status = models.ImportStatus.failed
-            db_import.error_message = str(e)  # エラー詳細を保存
+            db_import.error_message = str(e)
             db.commit()
