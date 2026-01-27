@@ -38,6 +38,7 @@ class Import(Base):
     created_by = Column(String(100), nullable=True)  # 🆕 追加
     resolved_by = Column(String(100), nullable=True)  # 🆕 追加
     resolved_at = Column(DateTime(timezone=True), nullable=True)  # 🆕 追加
+    s3_key = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

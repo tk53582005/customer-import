@@ -42,6 +42,7 @@ class ImportStatusResponse(BaseModel):
     created_by: Optional[str] = None  # 🆕 追加
     resolved_by: Optional[str] = None  # 🆕 追加
     resolved_at: Optional[datetime] = None  # 🆕 追加
+    s3_key: Optional[str] = None
     created_at: datetime
 
 

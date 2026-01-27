@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import imports
+from .routers import imports, uploads
 import os
 from dotenv import load_dotenv
 
@@ -21,6 +21,7 @@ app.add_middleware(
 
 # ルーター登録
 app.include_router(imports.router, prefix="/api", tags=["imports"])
+app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 
 @app.get("/")
 def read_root():
