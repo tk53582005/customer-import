@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import imports, uploads
+from .routers import imports, uploads, s3_upload
 import os
 from dotenv import load_dotenv
 
@@ -10,7 +10,6 @@ app = FastAPI(title="Customer Import API")
 
 # CORS設定
 origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -22,6 +21,7 @@ app.add_middleware(
 # ルーター登録
 app.include_router(imports.router, prefix="/api", tags=["imports"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
+app.include_router(s3_upload.router, tags=["s3_upload"])  # 新規追加
 
 @app.get("/")
 def read_root():
