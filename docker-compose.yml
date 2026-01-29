@@ -25,6 +25,8 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    environment:
+      DOCKER_ENV: "true"
     depends_on:
       mysql:
         condition: service_healthy

@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
-from typing import List, Dict, Any
+from . import models
+from typing import List, Dict, Optional
 
-def create_import(db: Session, filename: str) -> models.Import:
+def create_import(db: Session, filename: str, s3_key: Optional[str] = None) -> models.Import:
     """インポートレコードを作成"""
-    db_import = models.Import(filename=filename)
+    db_import = models.Import(filename=filename, s3_key=s3_key)
     db.add(db_import)
     db.commit()
     db.refresh(db_import)
@@ -32,8 +32,6 @@ def update_import_status(
         db_import.error_count = error_count
         db_import.candidate_count = candidate_count
         db.commit()
-        db.refresh(db_import)
-    return db_import
 
 def create_import_row(
     db: Session,
@@ -60,38 +58,24 @@ def create_import_row(
     db.refresh(db_row)
     return db_row
 
-def create_customer(db: Session, customer_data: Dict[str, Any]) -> models.Customer:
-    """顧客を作成"""
-    db_customer = models.Customer(**customer_data)
-    db.add(db_customer)
-    db.commit()
-    db.refresh(db_customer)
-    return db_customer
+def get_import_rows(db: Session, import_id: int) -> List[models.ImportRow]:
+    """インポート行のリストを取得"""
+    return db.query(models.ImportRow).filter(models.ImportRow.import_id == import_id).all()
 
-def get_customer_by_email(db: Session, email: str) -> models.Customer:
-    """emailで顧客を検索"""
-    return db.query(models.Customer).filter(models.Customer.email == email).first()
-
-def get_customer_by_phone(db: Session, phone: str) -> models.Customer:
-    """phoneで顧客を検索"""
-    return db.query(models.Customer).filter(models.Customer.phone == phone).first()
-
-def get_all_customers(db: Session) -> List[models.Customer]:
-    """全顧客を取得"""
-    return db.query(models.Customer).all()
-
-def create_duplicate_candidate(
+def create_candidate(
     db: Session,
-    import_row_id: int,
-    existing_customer_id: int,
-    match_reason: str,
+    import_id: int,
+    row_index: int,
+    customer_id: int,
+    match_type: str,
     similarity_score: float
 ) -> models.DuplicateCandidate:
-    """重複候補を作成"""
+    """候補レコードを作成"""
     db_candidate = models.DuplicateCandidate(
-        import_row_id=import_row_id,
-        existing_customer_id=existing_customer_id,
-        match_reason=match_reason,
+        import_id=import_id,
+        row_index=row_index,
+        customer_id=customer_id,
+        match_type=match_type,
         similarity_score=similarity_score
     )
     db.add(db_candidate)
@@ -99,48 +83,66 @@ def create_duplicate_candidate(
     db.refresh(db_candidate)
     return db_candidate
 
-def get_duplicate_candidates(db: Session, import_id: int) -> List[models.DuplicateCandidate]:
-    """インポートに紐づく重複候補を取得"""
-    return db.query(models.DuplicateCandidate).join(
-        models.ImportRow
-    ).filter(
-        models.ImportRow.import_id == import_id
-    ).all()
+def get_candidates(db: Session, import_id: int) -> List[models.DuplicateCandidate]:
+    """候補リストを取得"""
+    return db.query(models.DuplicateCandidate).filter(models.DuplicateCandidate.import_id == import_id).all()
 
-def resolve_duplicate_candidate(
+def resolve_candidate(db: Session, candidate_id: int, action: str) -> models.DuplicateCandidate:
+    """候補を解決"""
+    db_candidate = db.query(models.DuplicateCandidate).filter(models.DuplicateCandidate.id == candidate_id).first()
+    if db_candidate:
+        db_candidate.status = "resolved"
+        db_candidate.resolution_action = action
+        db.commit()
+        db.refresh(db_candidate)
+    return db_candidate
+
+def create_customer(
     db: Session,
-    candidate_id: int,
-    action: str,
-    new_customer_data: Dict[str, Any] = None
-):
-    """重複候補を解決"""
-    candidate = db.query(models.DuplicateCandidate).filter(
-        models.DuplicateCandidate.id == candidate_id
-    ).first()
-    
-    if not candidate:
-        return None
-    
-    if action == "merged":
-        # 既存顧客を更新
-        customer = db.query(models.Customer).filter(
-            models.Customer.id == candidate.existing_customer_id
-        ).first()
-        if customer and new_customer_data:
-            for key, value in new_customer_data.items():
-                if value:  # 新しいデータがあれば更新
-                    setattr(customer, key, value)
-        candidate.resolution = models.Resolution.merged
-        
-    elif action == "created_new":
-        # 新規顧客作成
-        if new_customer_data:
-            create_customer(db, new_customer_data)
-        candidate.resolution = models.Resolution.created_new
-        
-    elif action == "ignored":
-        candidate.resolution = models.Resolution.ignored
-    
+    full_name: str,
+    email: Optional[str],
+    phone: Optional[str],
+    address: Optional[str]
+) -> models.Customer:
+    """顧客を作成"""
+    db_customer = models.Customer(
+        full_name=full_name,
+        email=email,
+        phone=phone,
+        address=address
+    )
+    db.add(db_customer)
     db.commit()
-    db.refresh(candidate)
-    return candidate
+    db.refresh(db_customer)
+    return db_customer
+
+def get_customer(db: Session, customer_id: int) -> models.Customer:
+    """顧客を取得"""
+    return db.query(models.Customer).filter(models.Customer.id == customer_id).first()
+
+def update_customer(
+    db: Session,
+    customer_id: int,
+    full_name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    address: Optional[str] = None
+) -> models.Customer:
+    """顧客を更新"""
+    db_customer = get_customer(db, customer_id)
+    if db_customer:
+        if full_name is not None:
+            db_customer.full_name = full_name
+        if email is not None:
+            db_customer.email = email
+        if phone is not None:
+            db_customer.phone = phone
+        if address is not None:
+            db_customer.address = address
+        db.commit()
+        db.refresh(db_customer)
+    return db_customer
+
+def get_all_customers(db: Session) -> List[models.Customer]:
+    """全顧客を取得"""
+    return db.query(models.Customer).all()

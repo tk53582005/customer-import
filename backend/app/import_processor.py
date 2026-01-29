@@ -4,6 +4,7 @@ from .import_engine import normalize_value, validate_value, find_duplicate_candi
 from .s3_service import s3_service
 import pandas as pd
 from io import BytesIO
+import json
 
 
 def empty_to_none(value):
@@ -78,7 +79,7 @@ def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
         ]
 
         for idx, row in enumerate(rows):
-            raw_data = row
+            raw_data = json.dumps(row, ensure_ascii=False)
             mapped_data = {}
             normalized_data = {}
             validation_errors = []
@@ -101,8 +102,8 @@ def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
             # エラーがあればエラー行として保存
             if validation_errors:
                 crud.create_import_row(
-                    db, import_id, idx, raw_data, mapped_data,
-                    normalized_data, validation_errors, "error"
+                    db, import_id, idx, raw_data, json.dumps(mapped_data, ensure_ascii=False),
+                    json.dumps(normalized_data, ensure_ascii=False), validation_errors, "error"
                 )
                 error_count += 1
                 continue
@@ -124,8 +125,8 @@ def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
                 db.commit()
 
                 crud.create_import_row(
-                    db, import_id, idx, raw_data, mapped_data,
-                    normalized_data, [], "inserted"
+                    db, import_id, idx, raw_data, json.dumps(mapped_data, ensure_ascii=False),
+                    json.dumps(normalized_data, ensure_ascii=False), [], "inserted"
                 )
                 inserted_count += 1
             else:
@@ -136,8 +137,8 @@ def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
                 if candidates:
                     # 候補あり
                     db_row = crud.create_import_row(
-                        db, import_id, idx, raw_data, mapped_data,
-                        normalized_data, [], "candidate"
+                        db, import_id, idx, raw_data, json.dumps(mapped_data, ensure_ascii=False),
+                        json.dumps(normalized_data, ensure_ascii=False), [], "candidate"
                     )
 
                     for candidate in candidates:
@@ -152,20 +153,17 @@ def process_import_job(import_id: int, mapping: dict, rows: list, db: Session):
                     candidate_count += 1
                 else:
                     # 新規作成
-                    customer_data = {
-                        "full_name": normalized_data.get("full_name"),
-                        "email": empty_to_none(normalized_data.get("email")),
-                        "phone": empty_to_none(normalized_data.get("phone")),
-                        "address": normalized_data.get("address"),
-                        "city": normalized_data.get("city"),
-                        "state": normalized_data.get("state"),
-                        "zip_code": normalized_data.get("zip_code")
-                    }
-                    crud.create_customer(db, customer_data)
+                    crud.create_customer(
+                        db=db,
+                        full_name=normalized_data.get("full_name"),
+                        email=empty_to_none(normalized_data.get("email")),
+                        phone=empty_to_none(normalized_data.get("phone")),
+                        address=normalized_data.get("address")
+                    )
 
                     crud.create_import_row(
-                        db, import_id, idx, raw_data, mapped_data,
-                        normalized_data, [], "inserted"
+                        db, import_id, idx, raw_data, json.dumps(mapped_data, ensure_ascii=False),
+                        json.dumps(normalized_data, ensure_ascii=False), [], "inserted"
                     )
                     inserted_count += 1
 

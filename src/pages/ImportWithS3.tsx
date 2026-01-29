@@ -13,7 +13,7 @@ interface PresignedUrlResponse {
 }
 
 interface ImportFromS3Response {
-  job_id: string;
+  import_id: number;
   status: string;
   message: string;
 }
@@ -25,7 +25,7 @@ export default function ImportWithS3() {
     progress: 0,
     message: "",
   });
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [importId, setImportId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,18 +107,16 @@ export default function ImportWithS3() {
       }
 
       const importResult: ImportFromS3Response = await importResponse.json();
-      setJobId(importResult.job_id);
+      setImportId(importResult.import_id);
 
-      setStatus({ phase: "processing", progress: 90, message: importResult.message });
+      setStatus({ phase: "processing", progress: 80, message: importResult.message });
 
-      // 仮の完了処理（TODO: 実際はポーリングでステータス確認）
-      setTimeout(() => {
-        setStatus({
-          phase: "completed",
-          progress: 100,
-          message: `✅ インポート完了！ジョブID: ${importResult.job_id}`,
-        });
-      }, 2000);
+      // 完了処理
+      setStatus({
+        phase: "completed",
+        progress: 100,
+        message: `✅ インポート完了！インポートID: ${importResult.import_id}`,
+      });
     } catch (error) {
       setStatus({
         phase: "error",
@@ -130,7 +128,7 @@ export default function ImportWithS3() {
 
   const handleReset = () => {
     setSelectedFile(null);
-    setJobId(null);
+    setImportId(null);
     setStatus({ phase: "idle", progress: 0, message: "" });
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -289,7 +287,7 @@ export default function ImportWithS3() {
       <details style={{ marginTop: "32px", fontSize: "12px", color: "#666" }}>
         <summary style={{ cursor: "pointer" }}>デバッグ情報</summary>
         <pre style={{ backgroundColor: "#f5f5f5", padding: "12px", borderRadius: "4px", overflow: "auto" }}>
-          {JSON.stringify({ selectedFile: selectedFile?.name, jobId, status }, null, 2)}
+          {JSON.stringify({ selectedFile: selectedFile?.name, importId, status }, null, 2)}
         </pre>
       </details>
     </div>
