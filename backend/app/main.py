@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import imports, uploads, s3_upload
+from .routers import imports, uploads, s3_upload, duplicates
 import os
 from dotenv import load_dotenv
 
@@ -21,7 +21,8 @@ app.add_middleware(
 # ルーター登録
 app.include_router(imports.router, prefix="/api", tags=["imports"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
-app.include_router(s3_upload.router, tags=["s3_upload"])  # 新規追加
+app.include_router(s3_upload.router, tags=["s3_upload"])
+app.include_router(duplicates.router, tags=["duplicates"])
 
 @app.get("/")
 def read_root():

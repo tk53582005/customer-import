@@ -146,3 +146,56 @@ def update_customer(
 def get_all_customers(db: Session) -> List[models.Customer]:
     """全顧客を取得"""
     return db.query(models.Customer).all()
+def get_duplicate_candidates(db: Session, import_id: int) -> List[models.DuplicateCandidate]:
+    """重複候補を取得（import_id経由）"""
+    return db.query(models.DuplicateCandidate).join(
+        models.ImportRow
+    ).filter(
+        models.ImportRow.import_id == import_id,
+        models.DuplicateCandidate.resolution == models.Resolution.pending
+    ).all()
+
+def create_duplicate_candidate(
+    db: Session,
+    import_row_id: int,
+    existing_customer_id: int,
+    match_reason: str,
+    similarity_score: float
+) -> models.DuplicateCandidate:
+    """重複候補を作成"""
+    db_candidate = models.DuplicateCandidate(
+        import_row_id=import_row_id,
+        existing_customer_id=existing_customer_id,
+        match_reason=match_reason,
+        similarity_score=similarity_score
+    )
+    db.add(db_candidate)
+    db.commit()
+    db.refresh(db_candidate)
+    return db_candidate
+
+def resolve_duplicate(
+    db: Session,
+    candidate_id: int,
+    resolution: str,
+    merged_customer_id: Optional[int] = None
+) -> models.DuplicateCandidate:
+    """重複を解決"""
+    candidate = db.query(models.DuplicateCandidate).filter(
+        models.DuplicateCandidate.id == candidate_id
+    ).first()
+    if candidate:
+        candidate.resolution = resolution
+        if merged_customer_id:
+            candidate.merged_customer_id = merged_customer_id
+        db.commit()
+        db.refresh(candidate)
+    return candidate
+
+def get_customer_by_email(db: Session, email: str) -> Optional[models.Customer]:
+    """メールアドレスで顧客を検索"""
+    return db.query(models.Customer).filter(models.Customer.email == email).first()
+
+def get_customer_by_phone(db: Session, phone: str) -> Optional[models.Customer]:
+    """電話番号で顧客を検索"""
+    return db.query(models.Customer).filter(models.Customer.phone == phone).first()

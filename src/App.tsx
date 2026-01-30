@@ -1,45 +1,30 @@
-import { useState } from "react";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import ImportNewPage from "./pages/ImportNewPage";
 import ImportWithS3 from "./pages/ImportWithS3";
+import DuplicateResolution from "./pages/DuplicateResolution";
 
 function App() {
-  const [page, setPage] = useState<"lv3" | "s3">("lv3");
-
   return (
-    <div>
-      {/* ページ切り替えボタン */}
-      <div style={{ padding: "16px", borderBottom: "1px solid #ccc", display: "flex", gap: "8px" }}>
-        <button
-          onClick={() => setPage("lv3")}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: page === "lv3" ? "#007bff" : "#f0f0f0",
-            color: page === "lv3" ? "white" : "black",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer"
-          }}
-        >
-          Lv3 (メモリ版)
-        </button>
-        <button
-          onClick={() => setPage("s3")}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: page === "s3" ? "#007bff" : "#f0f0f0",
-            color: page === "s3" ? "white" : "black",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer"
-          }}
-        >
-          Phase 2 (S3版)
-        </button>
-      </div>
+    <BrowserRouter>
+      <div>
+        {/* ナビゲーション */}
+        <div style={{ padding: "16px", borderBottom: "1px solid #ccc", display: "flex", gap: "16px" }}>
+          <Link to="/" style={{ padding: "8px 16px", textDecoration: "none", color: "#007bff" }}>
+            Lv3 (メモリ版)
+          </Link>
+          <Link to="/s3" style={{ padding: "8px 16px", textDecoration: "none", color: "#007bff" }}>
+            Phase 5 (S3版)
+          </Link>
+        </div>
 
-      {/* ページ表示 */}
-      {page === "lv3" ? <ImportNewPage /> : <ImportWithS3 />}
-    </div>
+        {/* ルーティング */}
+        <Routes>
+          <Route path="/" element={<ImportNewPage />} />
+          <Route path="/s3" element={<ImportWithS3 />} />
+          <Route path="/duplicates/:importId" element={<DuplicateResolution />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 

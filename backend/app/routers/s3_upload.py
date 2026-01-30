@@ -64,10 +64,9 @@ async def get_presigned_url(request: PresignedUrlRequest):
 class ImportFromS3Request(BaseModel):
     s3_key: str
     mapping: dict = {
-        "name": "name",
-        "email": "email",
-        "phone": "phone",
-        "address": "address"
+        "full_name": "顧客名",
+        "email": "Mail",
+        "phone": "TEL"
     }
 
 class ImportFromS3Response(BaseModel):
