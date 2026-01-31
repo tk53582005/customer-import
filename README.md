@@ -127,3 +127,15 @@ CSVフォーマット例：
 ## 📄 ライセンス
 
 MIT License
+
+## 🧪 テスト
+```bash
+# ローカル環境
+cd backend
+python -m pytest tests/ -v
+
+# Docker環境（推奨）
+docker compose exec backend pytest tests/ -v
+```
+
+**注意**: DB接続が必要なテストはDocker環境での実行を推奨
