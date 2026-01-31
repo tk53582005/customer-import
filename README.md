@@ -88,6 +88,16 @@ npm run dev
 - バックエンドAPI: http://localhost:8000/docs
 
 ## 📊 システム構成
+## 🖼️ スクリーンショット
+
+### S3直接アップロード
+![S3 Upload](docs/screenshots/import.png)
+
+### インポート履歴
+![Import History](docs/screenshots/history.png)
+
+### 重複解決UI
+![Duplicate Resolution](docs/screenshots/duplicates.png)
 ```
 ┌─────────────┐   presigned URL   ┌──────┐
 │ React App   │ ─────────────────>│  S3  │
