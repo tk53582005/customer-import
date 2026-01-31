@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import imports, uploads, s3_upload, duplicates
+from .routers import imports, uploads, s3_upload, duplicates, import_history
 import os
 from dotenv import load_dotenv
 
@@ -23,6 +23,7 @@ app.include_router(imports.router, prefix="/api", tags=["imports"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 app.include_router(s3_upload.router, tags=["s3_upload"])
 app.include_router(duplicates.router, tags=["duplicates"])
+app.include_router(import_history.router, tags=["import_history"])
 
 @app.get("/")
 def read_root():

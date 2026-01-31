@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import ImportNewPage from "./pages/ImportNewPage";
 import ImportWithS3 from "./pages/ImportWithS3";
 import DuplicateResolution from "./pages/DuplicateResolution";
+import ImportHistory from "./pages/ImportHistory";
 
 function App() {
   return (
@@ -15,12 +16,16 @@ function App() {
           <Link to="/s3" style={{ padding: "8px 16px", textDecoration: "none", color: "#007bff" }}>
             Phase 5 (S3版)
           </Link>
+          <Link to="/history" style={{ padding: "8px 16px", textDecoration: "none", color: "#007bff" }}>
+            📋 履歴
+          </Link>
         </div>
 
         {/* ルーティング */}
         <Routes>
           <Route path="/" element={<ImportNewPage />} />
           <Route path="/s3" element={<ImportWithS3 />} />
+          <Route path="/history" element={<ImportHistory />} />
           <Route path="/duplicates/:importId" element={<DuplicateResolution />} />
         </Routes>
       </div>
