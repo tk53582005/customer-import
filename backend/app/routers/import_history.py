@@ -4,7 +4,7 @@ from typing import List
 from .. import models, schemas
 from ..database import get_db
 
-router = APIRouter(prefix="/api/imports", tags=["Import History"])
+router = APIRouter(tags=["Import History"])
 
 @router.get("/", response_model=List[schemas.ImportStatusResponse])
 def get_import_history(

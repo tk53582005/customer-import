@@ -10,7 +10,7 @@ from .. import crud, models
 from ..database import get_db, SessionLocal
 from ..import_processor import process_import_job
 
-router = APIRouter(prefix="/api/customers/upload", tags=["S3 Upload"])
+router = APIRouter(tags=["S3 Upload"])
 
 # S3クライアント初期化
 s3_client = boto3.client(

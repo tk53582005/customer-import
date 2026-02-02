@@ -118,7 +118,7 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
   async function onRun() {
     try {
       const payload = validationHook.results.map((r) => r.normalized);
-      const response = await fetch("http://localhost:8000/api/customers/import", {
+      const response = await fetch("/api/customers/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customers: payload }),
@@ -300,7 +300,7 @@ function ImportNewBody({ def }: { def: ImportDefinition }) {
                   const candidate = rowsWithCandidates[rowIndex];
                   if (!candidate) return;
 
-                  fetch(`http://localhost:8000/api/customers/resolve/${rowIndex}`, {
+                  fetch(`/api/customers/resolve/${rowIndex}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

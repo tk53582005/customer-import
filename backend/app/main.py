@@ -21,9 +21,9 @@ app.add_middleware(
 # ルーター登録
 app.include_router(imports.router, prefix="/api", tags=["imports"])
 app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
-app.include_router(s3_upload.router, tags=["s3_upload"])
-app.include_router(duplicates.router, tags=["duplicates"])
-app.include_router(import_history.router, tags=["import_history"])
+app.include_router(s3_upload.router, prefix="/api/s3-upload", tags=["s3_upload"])
+app.include_router(duplicates.router, prefix="/api/duplicates", tags=["duplicates"])
+app.include_router(import_history.router, prefix="/api/import-history", tags=["import_history"])
 
 @app.get("/")
 def read_root():

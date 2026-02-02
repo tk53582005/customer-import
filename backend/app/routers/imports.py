@@ -71,12 +71,9 @@ def import_customers(request: dict, db: Session = Depends(get_db)):
                 "full_name": customer_data.get("full_name"),
                 "email": empty_to_none(customer_data.get("email")),
                 "phone": empty_to_none(customer_data.get("phone")),
-                "address": customer_data.get("address_line1"),
-                "city": customer_data.get("city"),
-                "state": customer_data.get("state"),
-                "zip_code": customer_data.get("zip_code")
+                "address": customer_data.get("address_line1")
             }
-            crud.create_customer(db, customer_create)
+            crud.create_customer(db, **customer_create)
             results.append({
                 "normalized": customer_data,
                 "candidates": []

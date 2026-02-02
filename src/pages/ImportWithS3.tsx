@@ -55,7 +55,7 @@ export default function ImportWithS3() {
       // Step 1: presigned URL取得
       setStatus({ phase: "uploading", progress: 10, message: "アップロード準備中..." });
 
-      const presignedResponse = await fetch("http://localhost:8000/api/customers/upload/presigned-url", {
+      const presignedResponse = await fetch("/api/s3-upload/presigned-url", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -92,7 +92,7 @@ export default function ImportWithS3() {
       // Step 3: インポート実行依頼
       setStatus({ phase: "processing", progress: 70, message: "インポート処理を開始中..." });
 
-      const importResponse = await fetch("http://localhost:8000/api/customers/upload/import-from-s3", {
+      const importResponse = await fetch("/api/s3-upload/import-from-s3", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

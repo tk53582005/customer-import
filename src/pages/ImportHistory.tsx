@@ -23,7 +23,7 @@ export default function ImportHistory() {
 
   const fetchImports = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/imports/');
+      const response = await fetch('/api/import-history');
       const data = await response.json();
       setImports(data);
     } catch (error) {

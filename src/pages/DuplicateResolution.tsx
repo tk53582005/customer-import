@@ -35,7 +35,7 @@ export default function DuplicateResolution() {
 
   const fetchCandidates = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/duplicates/${importId}`);
+      const response = await fetch(`/api/duplicates/${importId}`);
       const data = await response.json();
       setCandidates(data);
     } catch (error) {
@@ -47,7 +47,7 @@ export default function DuplicateResolution() {
 
   const handleResolve = async (candidateId: number, action: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/duplicates/${candidateId}/resolve`, {
+      const response = await fetch(`/api/duplicates/${candidateId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action })

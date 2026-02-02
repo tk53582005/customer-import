@@ -5,7 +5,7 @@ from .. import crud, schemas, models
 from ..database import get_db
 import json
 
-router = APIRouter(prefix="/api/duplicates", tags=["Duplicates"])
+router = APIRouter(tags=["Duplicates"])
 
 @router.get("/{import_id}", response_model=List[schemas.DuplicateCandidateResponse])
 def get_duplicate_candidates(import_id: int, db: Session = Depends(get_db)):
