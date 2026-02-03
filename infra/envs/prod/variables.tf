@@ -57,12 +57,12 @@ variable "rds_multi_az" {
 
 variable "rds_backup_retention_period" {
   type    = number
-  default = 0
+  default = 7
 }
 
 variable "rds_skip_final_snapshot" {
   type    = bool
-  default = true
+  default = false
 }
 
 # ECS
@@ -88,5 +88,5 @@ variable "ecs_desired_count" {
 
 variable "log_retention_days" {
   type    = number
-  default = 7
+  default = 30
 }
