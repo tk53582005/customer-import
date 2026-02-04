@@ -112,6 +112,56 @@ npm run dev
 
 ## 🎯 実装フェーズ
 
+## 🏗️ Infrastructure (AWS + Terraform)
+
+本番環境を想定したAWSインフラ構成をTerraformで完全自動化。
+
+### アーキテクチャ
+```
+┌─────────────┐
+│   Internet  │
+└──────┬──────┘
+       │
+┌──────▼──────────┐
+│      ALB        │ ← WAF (prod)
+└──────┬──────────┘
+       │
+┌──────▼──────────┐
+│  ECS Fargate    │
+│ ┌──────┐┌─────┐│
+│ │React ││Fast││
+│ │      ││API ││
+│ └──────┘└─────┘│
+└──────┬──────────┘
+       │
+┌──────▼──────────┐
+│   RDS MySQL     │
+│ (Secrets Mgr)   │
+└─────────────────┘
+```
+
+### 主要機能
+
+- **環境分離**: staging/production環境を完全分離
+- **モジュール化**: 再利用可能なTerraformモジュール（VPC, ECS, RDS, Secrets, WAF）
+- **セキュリティ**: Secrets Manager、WAF、Private Subnet
+- **CI/CD**: GitHub Actionsでterraform plan自動実行
+- **コスト最適化**: Apply/Destroy運用で月額$2-3に抑制
+
+### 環境差分
+
+| 項目 | Staging | Production |
+|------|---------|------------|
+| RDS | Single-AZ | Multi-AZ + 7日バックアップ |
+| ECS | 256CPU/512MB×1 | 512CPU/1024MB×2 |
+| WAF | なし | ✅ 有効 |
+| 月額コスト | ~$40-50 (24/7) | ~$85-100 (24/7) |
+
+### 詳細ドキュメント
+
+完全な構築手順、コスト試算、トラブルシューティングは [infra/README.md](./infra/README.md) を参照。
+
+
 - ✅ Phase 1-3: 基礎機能（ファイルアップロード、バリデーション）
 - ✅ Phase 4: 重複検知・解決UI
 - ✅ Phase 5: S3直接アップロード + バックグラウンド処理
