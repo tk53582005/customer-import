@@ -13,6 +13,7 @@ provider "aws" {
 }
 
 locals {
+  dummy = "actions-test"
   name = "${var.project}-${var.env}"
   tags = {
     Project = var.project
