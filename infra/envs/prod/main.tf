@@ -79,3 +79,13 @@ module "ecs" {
   secrets_arns            = [module.secrets.secret_arn]
   tags                    = local.tags
 }
+
+# WAF Module (prod only)
+module "waf" {
+  source = "../../modules/waf"
+
+  name       = local.name
+  alb_arn    = module.ecs.alb_arn
+  rate_limit = var.waf_rate_limit
+  tags       = local.tags
+}

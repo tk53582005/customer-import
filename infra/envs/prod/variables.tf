@@ -90,3 +90,10 @@ variable "log_retention_days" {
   type    = number
   default = 30
 }
+
+# WAF
+variable "waf_rate_limit" {
+  type    = number
+  default = 2000
+  description = "WAF rate limit per 5 minutes per IP"
+}
