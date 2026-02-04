@@ -1,3 +1,5 @@
+[![Terraform Plan](https://github.com/tk53582005/customer-import/actions/workflows/terraform-plan.yml/badge.svg)](https://github.com/tk53582005/customer-import/actions/workflows/terraform-plan.yml)
+
 # Customer Import System
 
 顧客データCSVの自動インポート・重複検知・解決システム
