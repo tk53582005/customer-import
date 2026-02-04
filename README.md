@@ -42,62 +42,16 @@ CSV/Excelファイルからの顧客データインポートにおける実務�
 
 ### Infrastructure
 - Docker + Docker Compose
-- AWS S3 (ファイルストレージ)
+- AWS (ECS Fargate, RDS, ALB, Secrets Manager, WAF)
+- Terraform (Infrastructure as Code)
+- GitHub Actions (CI/CD)
 
 ### アルゴリズム
 - Levenshtein距離（文字列類似度計算）
 
-## 🚀 セットアップ
-
-### 前提条件
-- Docker Desktop
-- Node.js 20+
-- AWS アカウント（S3バケット作成済み）
-
-### 1. リポジトリクローン
-```bash
-git clone https://github.com/tk53582005/customer-import.git
-cd customer-import
-```
-
-### 2. 環境変数設定
-```bash
-# backend/.env を作成
-cat > backend/.env <<EOF
-DATABASE_URL=mysql+pymysql://app:app_pass@mysql:3306/customer_import?charset=utf8mb4
-CORS_ORIGINS=http://localhost:5173
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=ap-northeast-1
-AWS_S3_BUCKET=your_bucket_name
-EOF
-```
-
-### 3. 起動
-```bash
-# バックエンド（Docker）
-docker compose up -d
-
-# フロントエンド
-npm install
-npm run dev
-```
-
-### 4. アクセス
-- フロントエンド: http://localhost:5173
-- バックエンドAPI: http://localhost:8000/docs
-
 ## 📊 システム構成
-## 🖼️ スクリーンショット
 
-### S3直接アップロード
-![S3 Upload](docs/screenshots/import.png)
-
-### インポート履歴
-![Import History](docs/screenshots/history.png)
-
-### 重複解決UI
-![Duplicate Resolution](docs/screenshots/duplicates.png)
+### ローカル開発環境
 ```
 ┌─────────────┐   presigned URL   ┌──────┐
 │ React App   │ ─────────────────>│  S3  │
@@ -109,8 +63,6 @@ npm run dev
 │  FastAPI    │ ───────────────>│  MySQL   │
 └─────────────┘   CRUD操作      └──────────┘
 ```
-
-## 🎯 実装フェーズ
 
 ## 🏗️ Infrastructure (AWS + Terraform)
 
@@ -161,6 +113,58 @@ npm run dev
 
 完全な構築手順、コスト試算、トラブルシューティングは [infra/README.md](./infra/README.md) を参照。
 
+## 🚀 セットアップ
+
+### 前提条件
+- Docker Desktop
+- Node.js 20+
+- AWS アカウント（S3バケット作成済み）
+
+### 1. リポジトリクローン
+```bash
+git clone https://github.com/tk53582005/customer-import.git
+cd customer-import
+```
+
+### 2. 環境変数設定
+```bash
+# backend/.env を作成
+cat > backend/.env <<EOF
+DATABASE_URL=mysql+pymysql://app:app_pass@mysql:3306/customer_import?charset=utf8mb4
+CORS_ORIGINS=http://localhost:5173
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=ap-northeast-1
+AWS_S3_BUCKET=your_bucket_name
+EOF
+```
+
+### 3. 起動
+```bash
+# バックエンド（Docker）
+docker compose up -d
+
+# フロントエンド
+npm install
+npm run dev
+```
+
+### 4. アクセス
+- フロントエンド: http://localhost:5173
+- バックエンドAPI: http://localhost:8000/docs
+
+## 🖼️ スクリーンショット
+
+### S3直接アップロード
+![S3 Upload](docs/screenshots/import.png)
+
+### インポート履歴
+![Import History](docs/screenshots/history.png)
+
+### 重複解決UI
+![Duplicate Resolution](docs/screenshots/duplicates.png)
+
+## 🎯 実装フェーズ
 
 - ✅ Phase 1-3: 基礎機能（ファイルアップロード、バリデーション）
 - ✅ Phase 4: 重複検知・解決UI
@@ -180,14 +184,6 @@ CSVフォーマット例：
 山田 太郎,090-1234-5678,taro.yamada@example.com
 ```
 
-## 🤝 開発者
-
-[@tk53582005](https://github.com/tk53582005)
-
-## 📄 ライセンス
-
-MIT License
-
 ## 🧪 テスト
 ```bash
 # ローカル環境
@@ -199,3 +195,11 @@ docker compose exec backend pytest tests/ -v
 ```
 
 **注意**: DB接続が必要なテストはDocker環境での実行を推奨
+
+## 🤝 開発者
+
+[@tk53582005](https://github.com/tk53582005)
+
+## 📄 ライセンス
+
+MIT License
